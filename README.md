@@ -29,10 +29,10 @@ kubectl port-forward svc/vllm-grafana 3000:80
 # 4. Import the dashboard: Grafana UI -> Dashboards -> New -> Import -> upload
 #    dashboard-gpu-cost.json  (select the bundled Prometheus as data source)
 
-# 5. Generate load so panels move (a few completions through the router):
-kubectl port-forward svc/vllm-router-service 30080:80 &
-for i in $(seq 1 20); do curl -s http://localhost:30080/v1/completions -H "Content-Type: application/json" \
-  -d '{"model":"Qwen/Qwen2.5-7B-Instruct-AWQ","prompt":"Write one line about GPUs","max_tokens":64}' >/dev/null; done
+# 5. Generate load so panels move (handles the router port-forward itself):
+bash scripts/generate-load.sh                                  # 30 sequential requests
+REQUESTS=40 CONCURRENT=true MAX_TOKENS=512 bash scripts/generate-load.sh
+#   ^ heavier: simultaneous long generations — KV-cache visibly fills, cost/1M drops hardest
 ```
 
 ## The cost panel (the differentiator)

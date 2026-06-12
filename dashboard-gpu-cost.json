@@ -1,0 +1,46 @@
+{
+  "title": "GPU Serving — Cost & Health (Project 4)",
+  "uid": "gpu-cost-p4",
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "GPU Utilization % (DCGM)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [ { "expr": "DCGM_FI_DEV_GPU_UTIL", "legendFormat": "GPU {{gpu}} ({{Hostname}})" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } }
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "GPU Memory Used (DCGM)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [ { "expr": "DCGM_FI_DEV_FB_USED", "legendFormat": "GPU {{gpu}} ({{Hostname}})" } ],
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } }
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "TTFT p99 (s) — time to first token",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [ { "expr": "histogram_quantile(0.99, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le, model_name))", "legendFormat": "{{model_name}}" } ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "KV-cache usage %",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [ { "expr": "vllm:kv_cache_usage_perc * 100", "legendFormat": "{{model_name}}" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } }
+    },
+    {
+      "id": 5, "type": "stat", "title": "Cost per 1M generated tokens (USD) — 2x g6.xlarge @ $0.805/hr",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "targets": [ { "expr": "(2 * 0.805) / clamp_min((sum(rate(vllm:generation_tokens_total[5m])) * 3600) / 1e6, 0.001)" } ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 } }
+    },
+    {
+      "id": 6, "type": "stat", "title": "Generation throughput (tokens/s, all models)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "targets": [ { "expr": "sum(rate(vllm:generation_tokens_total[5m]))" } ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 1 } }
+    }
+  ],
+  "schemaVersion": 39
+}

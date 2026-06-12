@@ -1,0 +1,94 @@
+# Project 4 (observability) — helm UPGRADE values for the existing `vllm` release.
+# IMPORTANT: `helm upgrade -f` REPLACES values, so this file = Project 2's full config
+# PLUS the observability additions (marked "P4:"). Apply with:
+#   helm upgrade vllm vllm/vllm-stack -f values-observability.yaml
+#
+# What it adds:
+# - kube-prometheus-stack subchart (Prometheus + Grafana) on the system node
+# - ServiceMonitors so Prometheus scrapes vLLM engines + router (TTFT, KV-cache, tokens/s)
+# - an extra scrape job for the DCGM exporter (GPU util/mem) the GPU Operator already runs
+
+servingEngineSpec:
+  runtimeClassName: "nvidia"
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  # P4: let Prometheus scrape engine /metrics
+  serviceMonitor:
+    enabled: true
+
+  modelSpec:
+    - name: "qwen-1p5b"
+      repository: "vllm/vllm-openai"
+      tag: "v0.22.1"
+      modelURL: "Qwen/Qwen2.5-1.5B-Instruct"
+      replicaCount: 1
+      requestCPU: 2
+      requestMemory: "8Gi"
+      requestGPU: 1
+      vllmConfig:
+        maxModelLen: 4096
+        extraArgs:
+          - "--gpu-memory-utilization=0.90"
+          - "--max-num-seqs=32"
+
+    - name: "qwen-7b-awq"
+      repository: "vllm/vllm-openai"
+      tag: "v0.22.1"
+      modelURL: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      replicaCount: 1
+      requestCPU: 2
+      requestMemory: "8Gi"
+      requestGPU: 1
+      vllmConfig:
+        maxModelLen: 8192
+        extraArgs:
+          - "--quantization=awq_marlin"
+          - "--dtype=float16"
+          - "--gpu-memory-utilization=0.90"
+          - "--max-num-seqs=16"
+
+routerSpec:
+  enableRouter: true
+  replicaCount: 1
+  routingLogic: "roundrobin"
+  serviceType: ClusterIP
+  resources:
+    requests:
+      cpu: "400m"
+      memory: "1000Mi"
+  # P4: scrape the router too
+  serviceMonitor:
+    enabled: true
+
+# P4: ship the chart's prebuilt vLLM dashboards into Grafana
+grafanaDashboards:
+  enabled: true
+
+# P4: Prometheus + Grafana (subchart)
+kube-prometheus-stack:
+  enabled: true
+  prometheus:
+    prometheusSpec:
+      # pick up ALL ServiceMonitors in the cluster, not only label-matched ones
+      serviceMonitorSelectorNilUsesHelmValues: false
+      # GPU-level metrics: scrape the DCGM exporter the GPU Operator already runs.
+      # It's a DaemonSet (one pod per GPU node) — discover and scrape EACH pod via
+      # endpoints; scraping through the Service would load-balance to only one pod
+      # and silently drop the other GPU's metrics.
+      additionalScrapeConfigs:
+        - job_name: "dcgm-exporter"
+          metrics_path: /metrics
+          kubernetes_sd_configs:
+            - role: endpoints
+              namespaces:
+                names: ["gpu-operator"]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_name]
+              action: keep
+              regex: nvidia-dcgm-exporter
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
+  grafana:
+    adminPassword: "vllm-demo" # user=admin, password=vllm-demo; For demo only — never do this in production

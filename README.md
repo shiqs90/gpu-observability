@@ -52,3 +52,14 @@ the metric an inference platform is actually run on.
 | TTFT p99 | `vllm:time_to_first_token_seconds_bucket` | vLLM engines (/metrics) |
 | KV-cache % | `vllm:kv_cache_usage_perc` | vLLM engines |
 | Cost & throughput | `vllm:generation_tokens_total` | vLLM engines |
+
+## Deliverables
+
+1. Custom dashboard for GPU utilization, KV cache, P99 etc:
+
+  ![Grafana cost dashboard](docs/01_Graphana_Dashboard.png)
+
+2. vllm exposed metrics:
+
+  ![Grafana cost dashboard](docs/02_Graphana_Dashboard.png)
+
